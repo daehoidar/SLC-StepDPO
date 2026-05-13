@@ -42,8 +42,7 @@ def difficulty_bucket(item: dict) -> str:
         return "easy"
     if n_ops <= 4 and q_words <= 60:
         return "medium"    
-    else:
-        return "hard"
+    return "hard"
 
 # GSM8K에서 정답만 추출할 수 있는 함수(#### 뒤의 텍스트를 답으로 출력)
 def extract_gt_answer(answer_field: str) -> str:
