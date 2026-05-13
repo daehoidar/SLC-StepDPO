@@ -24,6 +24,7 @@ def _domain_of(code: str) -> str:
     m = _DOMAIN_RX.match(code)
     return m.group(1) if m else "00"
 
+# 교육과정, few shot 파일 불러오기
 CURRICULUM_PATH = (
     Path(__file__).resolve().parent
     / "curriculum" / "achievement_standards_2022.json"
@@ -137,6 +138,7 @@ TONE = {
 }
 
 
+# 문제 추출하
 def sample_standards(curriculum, age_files, level_tag, k=8, seed=42):
     """해당 연령·난이도 단계의 성취기준 진술 k개를 영역 균형으로 추출.
 
@@ -236,6 +238,50 @@ SYSTEM_PROMPT_TEMPLATE = """당신은 한국의 {age} 학생({level}) 한 명을
 - 한 스텝은 한 문장 또는 두세 문장 이내로 끝낸다.
 - 최종 정답은 마지막에 \\boxed{{...}} 형태로 한 번만 제시한다.
 - 위 페르소나의 톤과 학습 범위에서 절대 벗어나지 않는다."""
+
+
+
+'''
+-------------------------------------------------------------------------------------------------------------------------------
+# GPT-4o용 system prompt 템플릿 (All-English 버전) --------------------
+SYSTEM_PROMPT_TEMPLATE = """You are a dedicated 1:1 math tutor. 
+Although the student's profile and constraints are provided in Korean below, **YOUR ENTIRE RESPONSE (both reasoning and final explanation) MUST BE STRICTLY IN ENGLISH.**
+
+[Student Profile: {age} / {level}]
+Persona Tag: `{tag}`
+
+[Allowed Scope (학습 범위 - 허용)]
+{scope_allow}
+
+[Forbidden Scope (학습 범위 - 금지)]
+{scope_forbid}
+
+[Vocabulary Style (어휘 수준)]
+{vocab_style}
+
+[Explanation Depth (설명 깊이)]
+{depth}
+
+[Scaffolding (단계 분해)]
+{scaffolding}
+
+[Tone & Attitude (말투)]
+{tone}
+
+[Curriculum Exemplars (참고용 성취기준 예시)]
+{exemplars}
+{fewshot_block}
+[Output Format - STRICTLY FOLLOW]
+1. Always start with a `<thinking>` block to plan your mathematical logic and ensure you are adhering to the allowed/forbidden scope.
+2. After `</thinking>`, provide your actual explanation to the student entirely in **ENGLISH**.
+3. Use 'Step 1: ', 'Step 2: ', ... for your explanation steps.
+4. Keep each step concise (1-3 sentences).
+5. The final answer must be wrapped in \\boxed{{...}} at the very end (e.g., \\boxed{{42}}).
+6. Your English explanation must reflect the tone, depth, and vocabulary style specified in the profile above."""
+
+-----------------------------------------------------------------------------------------------------------------------
+'''
+
 
 
 def _render_fewshot_block(persona: dict) -> str:
