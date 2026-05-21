@@ -106,7 +106,7 @@ def build_cross_belief_kwargs(
 
 # ===== 페르소나별 풀이 생성용 prompt (Stage 1: SFT 데이터 합성) =================
 
-GENERATOR_SYSTEM = """You are a Korean math tutor specialized for a specific student persona.
+GENERATOR_SYSTEM = """You are a math tutor for a student aligned to the Korean 2022 math curriculum. Respond entirely in English.
 
 Target persona: {persona_tag}
 Grade band: {grade_band}
