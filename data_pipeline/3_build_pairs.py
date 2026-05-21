@@ -106,10 +106,10 @@ def sample_solutions(
 ) -> list[list[str]]:
     prompt = (
         f"{persona['tag']}\n"
-        f"문제: {problem['problem']}\n"
-        f"단계별 풀이:\n"
+        f"Problem: {problem['problem']}\n"
+        f"Solution:\n"
     )
-    sp = SamplingParams(temperature=temperature, max_tokens=800, n=k, stop=["문제:", "\n\n\n"])
+    sp = SamplingParams(temperature=temperature, max_tokens=800, n=k, stop=["Problem:", "\n\n\n"])
     outputs = llm.generate([prompt], sp)
     return [parse_steps(o.text) for o in outputs[0].outputs]
 

@@ -57,12 +57,13 @@ def filter_pairs(rows: list[dict], cfg: dict) -> list[dict]:
 
 def build_prompt(persona_tag: str, problem: str, prefix_steps: list[str],
                  use_belief: bool = True) -> str:
-    """Belief 토큰 포함 여부 조정 가능."""
+    """Belief 토큰 포함 여부 조정 가능. 'Problem:'/'Solution:' 헤더(영어)는
+    SFT 학습 시점(2_train_sft.py:format_sft_text)과 동일하게 유지."""
     head = f"{persona_tag}\n" if use_belief else ""
     prefix = "\n".join(prefix_steps)
     if prefix:
-        return f"{head}문제: {problem}\n단계별 풀이:\n{prefix}\n"
-    return f"{head}문제: {problem}\n단계별 풀이:\n"
+        return f"{head}Problem: {problem}\nSolution:\n{prefix}\n"
+    return f"{head}Problem: {problem}\nSolution:\n"
 
 
 def tokenize_pair(

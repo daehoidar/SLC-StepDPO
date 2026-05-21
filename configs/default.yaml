@@ -1,5 +1,6 @@
 # BC-StepDPO 학습 설정
-# Qwen3-4B + LoRA 기준. 1.7B로 ablation 시 batch_size 키울 것.
+# 기본 base = Qwen3-0.6B + LoRA (로컬 Mac M-series 테스트 기준).
+# 풀스케일은 Qwen3-4B로 갈아끼우고 batch_size·max_len 조정.
 
 # -------- SFT (Stage 2) --------
 sft:

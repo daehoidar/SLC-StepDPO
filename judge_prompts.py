@@ -135,7 +135,7 @@ Final answer: ...
 Each step is 1-3 sentences. Total 3-6 steps."""
 
 
-GENERATOR_USER_TEMPLATE = """Problem (Korean): {problem}
+GENERATOR_USER_TEMPLATE = """Problem: {problem}
 
 Generate a solution matching the target persona."""
 

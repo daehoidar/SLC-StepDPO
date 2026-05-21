@@ -8,16 +8,20 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3-4B-Instruct}"
+BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3-0.6B}"
 OUT_DIR="data_pipeline/output"
 CKPT_DIR="checkpoints"
 N_PROBLEMS="${N_PROBLEMS:-1500}"
 SOLS_PER_ROW="${SOLS_PER_ROW:-5}"
 K_SAMPLES="${K_SAMPLES:-8}"
 
+# Stage 3·5는 vLLM을 사용 → Linux+CUDA 필요. Mac 로컬 테스트에선 Stage 0~2까지만 권장.
+# Mac에서 풀스택 테스트하려면 3_build_pairs.py / 5_evaluate.py의 vLLM 호출을
+# transformers 기반으로 교체 (TODO).
+
 mkdir -p "$OUT_DIR" "$CKPT_DIR"
 
-echo "=== Stage 0: Seed problem sampling (GSM8K easy+medium) ==="
+echo "=== Stage 0: Seed problem sampling (MetaMathQA-40K, GSM_ filter + query dedupe) ==="
 python data_pipeline/0_seed_problems.py \
     --n-problems "$N_PROBLEMS" \
     --out "$OUT_DIR/seed_problems.jsonl"

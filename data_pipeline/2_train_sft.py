@@ -38,11 +38,15 @@ def load_jsonl(path: str) -> list[dict]:
 
 
 def format_sft_text(row: dict) -> str:
-    """SFT 학습 형식: <persona> 문제 + 풀이."""
+    """SFT 학습 형식: <persona> Problem + Solution.
+
+    MetaMathQA 영어 입력에 맞게 'Problem:'·'Solution:' 헤더 사용.
+    추론·재학습 시점에도 동일 헤더가 들어가야 분포 일치.
+    """
     return (
         f"{row['persona_tag']}\n"
-        f"문제: {row['problem']}\n"
-        f"단계별 풀이:\n"
+        f"Problem: {row['problem']}\n"
+        f"Solution:\n"
         f"{row['solution_text']}"
     )
 

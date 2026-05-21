@@ -48,7 +48,7 @@ def generate(llm: LLM, problems: list[dict], personas: list[dict]) -> list[dict]
     prompts, meta = [], []
     for p in problems:
         for pers in personas:
-            prompts.append(f"{pers['tag']}\n문제: {p['problem']}\n단계별 풀이:\n")
+            prompts.append(f"{pers['tag']}\nProblem: {p['problem']}\nSolution:\n")
             meta.append({"problem": p, "persona": pers})
     sp = SamplingParams(temperature=0.0, max_tokens=800)
     outputs = llm.generate(prompts, sp)
