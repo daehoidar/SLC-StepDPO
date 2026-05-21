@@ -158,10 +158,12 @@ def summarize_pairs(out_dir: Path, mode: str) -> str:
 
     md = [f"# Test Report — Preference Pairs (Stage 3) — `{mode}` 모드\n"]
     if mode == "step_dpo":
-        md.append("Step-DPO 학습 시 `disable_type2: true`로 Type-2 페어는 사후 필터됨. "
-                  "Stage 3 빌더 자체는 두 종류 모두 만든다 (학습 단계에서 분기).\n")
+        md.append("`data_pipeline_stepdpo/`의 2단(first-error → rectify) 파이프라인. "
+                  "출력은 `step_pair`만 (belief_flip은 정의상 생성되지 않음). "
+                  "스키마는 BC-StepDPO 학습(Proposition 2)에 그대로 들어간다.\n")
     else:
-        md.append("Full Step-DPO 학습 시 Type-1 + Type-2 모두 사용. flip rate가 (A7)의 empirical 증거.\n")
+        md.append("`data_pipeline/3_build_pairs.py`의 Type-1 + Type-2 동시 빌드. "
+                  "flip rate가 (A7)의 empirical 증거.\n")
 
     if not pairs_path.exists():
         md.append(f"⚠️ {pairs_path} 없음. Stage 3 실패.\n")
@@ -185,8 +187,12 @@ def summarize_pairs(out_dir: Path, mode: str) -> str:
 
     md.append("\n## Mode 별 사용 가능 페어\n")
     if mode == "step_dpo":
-        md.append(f"- Step-DPO 학습엔 Type-1 {n_t1}개만 사용 (Type-2 {n_t2}개는 제외).")
-        md.append(f"- `n_failures > 0`인 (problem × persona) 페어 수와 일치해야 함.")
+        md.append(f"- 학습에 사용되는 step_pair: **{n_t1}**개.")
+        md.append(f"- `(problem × persona)` 중 SFT 모델이 실패한 (= first-error가 발견된) "
+                  f"케이스 수와 일치해야 함.")
+        if n_t2 > 0:
+            md.append(f"- ⚠️ Step-DPO 모드인데 belief_flip_pair가 {n_t2}개 검출됨 — "
+                      f"파이프라인 라우팅 점검 필요.")
     else:
         md.append(f"- Full Step-DPO 학습엔 Type-1 + Type-2 합 {n_t1 + n_t2}개 사용.")
         md.append(f"- **flip rate (Type-2/Total)**: {n_t2 / max(len(pairs), 1):.2%}")

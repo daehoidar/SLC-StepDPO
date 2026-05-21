@@ -43,28 +43,47 @@ Delta_theta = [log pi_theta(s_w | x, b, prefix) - log pi_ref(s_w | x, b, prefix)
 
 ## 디렉토리 구조
 
+Stage 0~2와 4~5는 공통, **Stage 3에서 모드별 디렉토리로 분기**한다.
+
 ```
 Persona-Step-DPO/
-  README.md
+  README.md                              본 문서
+  CODEMAP.md                             파일별 역할 인덱스
+  PIPELINE.md                            Stage 0~5 전체 흐름·실행 가이드
   requirements.txt
   personas.json                          페르소나 6종 정의 (enriched)
   judge_prompts.py                       GPT-4o용 prompt 3종 + 포매팅 헬퍼
   bc_stepdpo_loss.py                     BC-StepDPO 손실 함수
+  inference_backend.py                   vLLM 미지원 환경용 transformers fallback
   derive_persona_evidence.py             personas.json + 교육과정 cross-reference
   utils.py                               공용 헬퍼 (load_personas / parse_steps)
   configs/
-    default.yaml                         SFT + BC-StepDPO 학습 설정
+    default.yaml                         SFT + Full Step-DPO 학습 설정
+    step_dpo.yaml                        Step-DPO 모드 preset
   curriculum/
     achievement_standards_2022.json      2022 개정 수학과 성취기준 254개
-  data_pipeline/
-    0_seed_problems.py                   MetaMathQA-40K GSM_ 필터 + query dedupe
-    1_synthesize_sft.py                  GPT-4o로 페르소나별 풀이 합성
-    2_train_sft.py                       SFT (reference 모델 학습)
-    3_build_pairs.py                     Type-1 + Type-2 preference pair 구축
+  data_pipeline/                         Stage 0~2 공통 + Stage 3 Full + Stage 4·5
+    0_seed_problems.py
+    1_synthesize_sft.py
+    2_train_sft.py
+    3_build_pairs.py                     Full 모드: Type-1 + Type-2 동시 빌드
     3_5_analyze_flip_rate.py             label flip rate 통계 (Proposition 3)
-    4_train_bc_stepdpo.py                BC-StepDPO 학습
-    5_evaluate.py                        평가 (final acc + step judge + flip handling)
-    run_full_pipeline.sh                 Stage 0~5 일괄 실행 스크립트
+    4_train_bc_stepdpo.py                BC-StepDPO 학습 (두 모드 공통)
+    5_evaluate.py
+    run_full_pipeline.sh                 Stage 0~5 일괄 실행 (Full 경로 기준)
+  data_pipeline_stepdpo/                 ★ Stage 3 Step-DPO 전용
+    3_locate_first_error.py              π_ref K-sample → GPT-4o로 최초 오류 검출
+    4_build_pairs.py                     Rectification → step_pair JSONL
+  data_pipeline_fullstepdpo/             ★ Stage 3 Full Step-DPO (PRM 기반, 골격)
+    3a_mc_rollout_label.py               MC rollout으로 step value 자동 라벨
+    3b_train_prm.py                      PRM 학습
+    3c_score_and_pack.py                 체인별 per-step reward 패킹
+  tests/                                 phase별 sanity test + REPORT 자동 생성
+    README.md                            테스트 가이드
+    run_sft_data.sh                      Phase A (Stage 0+1)
+    run_sft_train.sh                     Phase B (Stage 2)
+    run_pairs.sh                         Phase C (Stage 3, 모드별 분기)
+    summarize.py                         REPORT.md generator
 ```
 
 ## 의존성
@@ -79,26 +98,46 @@ pip install -r requirements.txt
 # 0) 페르소나 evidence 자동 주입 (최초 1회 또는 personas.json 수정 시)
 python derive_persona_evidence.py
 
-# 1) 전체 파이프라인 일괄 실행
+# 1) 풀스케일 (Full Step-DPO 경로 — Type-1 + Type-2)
 export OPENAI_API_KEY=sk-...
 export BASE_MODEL=Qwen/Qwen3-1.7B-Instruct
 export N_PROBLEMS=1500
 export SOLS_PER_ROW=5
 export K_SAMPLES=8
 bash data_pipeline/run_full_pipeline.sh
+
+# 1') Step-DPO 경로만 별도로 (first-error → rectify)
+#     Stage 0~2는 위와 동일. Stage 3만 교체:
+python data_pipeline_stepdpo/3_locate_first_error.py \
+    --ref-model checkpoints/sft_ref \
+    --seed-problems data_pipeline/output/seed_problems.jsonl \
+    --personas-path personas.json \
+    --k-samples 8 \
+    --output data_pipeline_stepdpo/output/located_errors.jsonl
+python data_pipeline_stepdpo/4_build_pairs.py \
+    --located data_pipeline_stepdpo/output/located_errors.jsonl \
+    --output data_pipeline_stepdpo/output/pairs_stepdpo.jsonl
+accelerate launch data_pipeline/4_train_bc_stepdpo.py \
+    --base-model checkpoints/sft_ref \
+    --pairs data_pipeline_stepdpo/output/pairs_stepdpo.jsonl \
+    --config configs/step_dpo.yaml \
+    --output checkpoints/step_dpo
 ```
 
-단계별 수동 실행은 `run_full_pipeline.sh` 안의 명령을 참고한다.
+단계별 수동 실행과 phase별 sanity test는 [PIPELINE.md](PIPELINE.md) /
+[tests/README.md](tests/README.md) 참조.
 
-## Ablation Grid (configs/default.yaml의 toggle로 제어)
+## Ablation Grid
 
-| Config | step_mask | belief_token | type2 |
-|---|---|---|---|
-| Vanilla DPO | OFF | ON | OFF |
-| Step-DPO (math only) | ON | OFF | OFF |
-| Conditional DPO | OFF | ON | OFF |
-| BC-StepDPO (Type-1 only) | ON | ON | OFF |
-| BC-StepDPO (full) | ON | ON | ON |
+학습 측 toggle 3개 (`configs/default.yaml`) × 데이터 측 모드 2개의 조합:
+
+| Config | step_mask | belief_token | type2 | 데이터 소스 |
+|---|---|---|---|---|
+| Vanilla DPO | OFF | ON | OFF | `data_pipeline/output/preference_pairs.jsonl` |
+| Step-DPO (math only) | ON | OFF | OFF | `data_pipeline_stepdpo/output/pairs_stepdpo.jsonl` |
+| Conditional DPO | OFF | ON | OFF | `data_pipeline/output/preference_pairs.jsonl` |
+| BC-StepDPO (Type-1 only) | ON | ON | OFF | `data_pipeline_stepdpo/output/pairs_stepdpo.jsonl` 또는 `data_pipeline/...` 중 step_pair |
+| BC-StepDPO (full) | ON | ON | ON | `data_pipeline/output/preference_pairs.jsonl` |
 
 핵심 비교는 마지막 두 줄 — Type-2 belief-flip pair가 trivial conditioning을
 넘어선 신호를 만드는지 검증한다.

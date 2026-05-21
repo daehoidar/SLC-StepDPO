@@ -2,8 +2,12 @@
 # tests/run_pairs.sh — Stage 3 (preference pair 빌드) 소규모 테스트.
 #
 # 모드 인자(필수): step_dpo | full
-#   step_dpo : 학습 시 Type-2 제외 (사후 필터). Stage 3 자체는 두 종류 모두 생성.
-#   full     : Type-1 + Type-2 모두 생성 (default)
+#   step_dpo : data_pipeline_stepdpo/ 사용 (first-error → rectify, Type-1만)
+#   full     : data_pipeline/3_build_pairs.py 사용 (Type-1 + Type-2 belief_flip)
+#
+# 두 모드 모두 출력 스키마는 동일(persona_id/persona_tag/prefix_steps/
+# step_win/step_lose/pair_type/...) → data_pipeline/4_train_bc_stepdpo.py가
+# 그대로 학습 가능.
 #
 # Mac M-series는 vLLM 미지원이라 자동으로 transformers fallback 사용.
 #
@@ -14,7 +18,7 @@
 #
 # 출력:
 #   tests/output/pairs_{mode}/preference_pairs.jsonl
-#   tests/output/pairs_{mode}/flip_stats.json  (Full 모드만 의미 있음)
+#   tests/output/pairs_{mode}/flip_stats.json   (full 모드만 의미 있음)
 #   tests/output/pairs_{mode}/REPORT.md
 
 set -euo pipefail
@@ -45,19 +49,39 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-echo "=== [test/pairs:$MODE] Stage 3: pair 빌드 (ref=$REF_MODEL, K=$K_SAMPLES) ==="
-python data_pipeline/3_build_pairs.py \
-    --ref-model "$REF_MODEL" \
-    --seed-problems "$IN_SEED" \
-    --personas-path personas.json \
-    --k-samples "$K_SAMPLES" \
-    --output "$OUT_DIR/preference_pairs.jsonl"
+if [[ "$MODE" == "step_dpo" ]]; then
+    # Step-DPO: data_pipeline_stepdpo/의 2단(locate → rectify) 파이프라인.
+    echo "=== [test/pairs:step_dpo] Stage 3a: first-error localization (K=$K_SAMPLES) ==="
+    python data_pipeline_stepdpo/3_locate_first_error.py \
+        --ref-model "$REF_MODEL" \
+        --seed-problems "$IN_SEED" \
+        --personas-path personas.json \
+        --k-samples "$K_SAMPLES" \
+        --output "$OUT_DIR/located_errors.jsonl"
 
-echo
-echo "=== [test/pairs:$MODE] Stage 3.5: flip rate 분석 ==="
-python data_pipeline/3_5_analyze_flip_rate.py \
-    --pairs "$OUT_DIR/preference_pairs.jsonl" \
-    --output "$OUT_DIR/flip_stats.json" || echo "[warn] flip 분석 실패 (정상: Step-DPO 모드라 flip 적을 수 있음)"
+    echo
+    echo "=== [test/pairs:step_dpo] Stage 3b: rectify → step_pair 빌드 ==="
+    python data_pipeline_stepdpo/4_build_pairs.py \
+        --located "$OUT_DIR/located_errors.jsonl" \
+        --output "$OUT_DIR/preference_pairs.jsonl"
+
+    # Step-DPO 모드엔 belief_flip이 없으므로 flip_stats는 의미가 없음 → skip.
+else
+    # Full Step-DPO (BC-StepDPO Type-1 + Type-2): 기존 단일 파일 파이프라인.
+    echo "=== [test/pairs:full] Stage 3: Type-1 + Type-2 pair 빌드 (ref=$REF_MODEL, K=$K_SAMPLES) ==="
+    python data_pipeline/3_build_pairs.py \
+        --ref-model "$REF_MODEL" \
+        --seed-problems "$IN_SEED" \
+        --personas-path personas.json \
+        --k-samples "$K_SAMPLES" \
+        --output "$OUT_DIR/preference_pairs.jsonl"
+
+    echo
+    echo "=== [test/pairs:full] Stage 3.5: flip rate 분석 ==="
+    python data_pipeline/3_5_analyze_flip_rate.py \
+        --pairs "$OUT_DIR/preference_pairs.jsonl" \
+        --output "$OUT_DIR/flip_stats.json" || echo "[warn] flip 분석 실패"
+fi
 
 echo
 echo "=== [test/pairs:$MODE] Summary ==="
