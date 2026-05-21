@@ -34,7 +34,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from openai import OpenAI  # noqa: E402
-from vllm import LLM, SamplingParams  # noqa: E402
+
+# vLLM이 없는 환경(Mac M-series 등)에선 transformers fallback 사용.
+# 두 backend는 같은 generate(prompts, sampling_params) 인터페이스를 가진다.
+try:
+    from vllm import LLM, SamplingParams  # type: ignore  # noqa: E402
+    _VLLM_AVAILABLE = True
+except ImportError:
+    from inference_backend import (  # noqa: E402
+        TransformersLLM as LLM,
+        TransformersSamplingParams as SamplingParams,
+    )
+    _VLLM_AVAILABLE = False
 
 from judge_prompts import (  # noqa: E402
     STEP_JUDGE_SYSTEM, STEP_JUDGE_USER_TEMPLATE,

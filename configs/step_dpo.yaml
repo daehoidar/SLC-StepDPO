@@ -1,0 +1,40 @@
+# Step-DPO 모드 설정 (configs/default.yaml의 toggle만 변경한 preset).
+# Step-DPO 핵심: step-level masking은 켜고, belief conditioning + Type-2는 끔.
+# → 순수 Lai et al. Step-DPO와 동등한 학습.
+#
+# Full Step-DPO 모드는 configs/default.yaml 사용 (default).
+
+# -------- SFT (Stage 2) --------
+sft:
+  use_lora: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_targets: ["q_proj", "v_proj", "o_proj", "k_proj"]
+  epochs: 2
+  batch_size: 4
+  grad_accum: 4
+  max_len: 1024
+  lr: 2.0e-5
+  warmup_steps: 100
+
+# -------- Step-DPO (Stage 4) --------
+use_lora: true
+lora_r: 32
+lora_alpha: 64
+lora_targets: ["q_proj", "v_proj", "o_proj", "k_proj"]
+
+epochs: 2
+batch_size: 4
+grad_accum: 8
+max_len: 1024
+lr: 5.0e-6
+weight_decay: 0.01
+warmup_steps: 100
+max_grad_norm: 1.0
+
+beta: 0.1
+
+# -------- Step-DPO 모드 toggle --------
+disable_step_mask: false      # step-level masking 켬 (Step-DPO 핵심 트릭)
+disable_belief_token: true    # ← 페르소나 토큰 제거 (Step-DPO 모드 핵심)
+disable_type2: true           # ← Type-2 belief-flip pair 제외 (Step-DPO 모드 핵심)
