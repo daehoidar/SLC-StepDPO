@@ -12,7 +12,7 @@ Step-DPO Stage 3a: 최초 오류 스텝 검출 + 페르소나 cascade 검증.
   (2) Standalone 모드 (기존):
        --ref-model 만 주면 π_ref로 자체 K-샘플링 + cascade 직접 호출.
 
-출력 한 행 → 4_build_pairs.py로:
+출력 한 행 → 3b_build_pairs.py로:
   {
     "problem_id", "problem", "ground_truth",
     "persona_id", "persona_tag",
