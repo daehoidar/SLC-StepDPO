@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Step DPO 전체 파이프라인 (Stage 0 ~ 5).
-# 실행 위치: repo root
+# BC-StepDPO 전체 파이프라인 (Stage 0 ~ 5).
+# Persona-Step-DPO 레포 기준 경로.
 
 set -euo pipefail
 : "${OPENAI_API_KEY:?OPENAI_API_KEY가 설정되어 있어야 합니다}"
@@ -15,9 +15,13 @@ N_PROBLEMS="${N_PROBLEMS:-1500}"
 SOLS_PER_ROW="${SOLS_PER_ROW:-5}"
 K_SAMPLES="${K_SAMPLES:-8}"
 
-mkdir -p "$OUT_DIR/stepdpo" "$CKPT_DIR"
+# Stage 3·5는 vLLM을 사용 → Linux+CUDA 필요. Mac 로컬 테스트에선 Stage 0~2까지만 권장.
+# Mac에서 풀스택 테스트하려면 3_build_pairs.py / 5_evaluate.py의 vLLM 호출을
+# transformers 기반으로 교체 (TODO).
 
-echo "=== Stage 0: Seed problem sampling ==="
+mkdir -p "$OUT_DIR" "$CKPT_DIR"
+
+echo "=== Stage 0: Seed problem sampling (MetaMathQA-40K, GSM_ filter + query dedupe) ==="
 python data_pipeline/0_seed_problems.py \
     --n-problems "$N_PROBLEMS" \
     --out "$OUT_DIR/seed_problems.jsonl"
@@ -35,35 +39,32 @@ accelerate launch data_pipeline/2_train_sft.py \
     --output "$CKPT_DIR/sft_ref" \
     --config configs/default.yaml
 
-echo "=== Stage 3 (Shared Sampling): π_ref 샘플링 + 페르소나 cascade ==="
-python data_pipeline/shared_sampling.py \
+echo "=== Stage 3: Type-1 + Type-2 preference pair 구축 ==="
+python data_pipeline_stepdpo/3_build_pairs.py \
     --ref-model "$CKPT_DIR/sft_ref" \
     --seed-problems "$OUT_DIR/seed_problems.jsonl" \
+    --personas-path personas.json \
     --k-samples "$K_SAMPLES" \
-    --output "$OUT_DIR/samples_with_persona_labels.jsonl"
+    --output "$OUT_DIR/preference_pairs.jsonl"
 
-echo "=== Stage 3a: 최초 오류 스텝 검출 ==="
-python data_pipeline_stepdpo/3a_locate_first_error.py \
-    --samples-path "$OUT_DIR/samples_with_persona_labels.jsonl" \
-    --output "$OUT_DIR/stepdpo/located_errors.jsonl"
-
-echo "=== Stage 3b: win/lose 페어 구성 ==="
-python data_pipeline_stepdpo/3b_build_pairs.py \
-    --located "$OUT_DIR/stepdpo/located_errors.jsonl" \
-    --output "$OUT_DIR/stepdpo/pairs_stepdpo.jsonl"
+echo "=== Stage 3.5: Label flip rate 통계 ==="
+python data_pipeline_stepdpo/3_5_analyze_flip_rate.py \
+    --pairs "$OUT_DIR/preference_pairs.jsonl" \
+    --output "$OUT_DIR/flip_stats.json"
 
 echo "=== Stage 4: BC-StepDPO 학습 ==="
 accelerate launch data_pipeline_stepdpo/4_train_bc_stepdpo.py \
     --base-model "$CKPT_DIR/sft_ref" \
-    --pairs "$OUT_DIR/stepdpo/pairs_stepdpo.jsonl" \
-    --config configs/step_dpo.yaml \
+    --pairs "$OUT_DIR/preference_pairs.jsonl" \
+    --config configs/default.yaml \
     --output "$CKPT_DIR/bc_stepdpo"
 
 echo "=== Stage 5: 평가 ==="
-python data_pipeline/5_evaluate.py \
+python evaluation/5_evaluate.py \
     --model "$CKPT_DIR/bc_stepdpo" \
     --test-set "$OUT_DIR/test.jsonl" \
     --personas-path personas.json \
+    --flip-stats "$OUT_DIR/flip_stats.json" \
     --output "$CKPT_DIR/bc_stepdpo/eval_results.json"
 
 echo "Done. 결과: $CKPT_DIR/bc_stepdpo/eval_results.json"

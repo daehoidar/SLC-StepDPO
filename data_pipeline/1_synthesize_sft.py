@@ -40,6 +40,7 @@ from judge_prompts import (  # noqa: E402
     GENERATOR_SYSTEM, GENERATOR_USER_TEMPLATE, build_generator_kwargs,
 )
 from utils import load_personas, parse_steps  # noqa: E402
+from openai_client import make_openai_client  # noqa: E402
 
 
 def load_seed_rows(path: Path) -> list[dict]:
@@ -71,6 +72,7 @@ def generate_one_solution(
                 temperature=0.8,
                 max_tokens=800,
             )
+            
             solution_text = resp.choices[0].message.content
             steps = parse_steps(solution_text)
             if len(steps) < 2:
@@ -120,7 +122,7 @@ def main():
                         help="0이면 전체. 디버그/부트스트랩용 호출 수 제한.")
     args = parser.parse_args()
 
-    client = OpenAI()
+    client = make_openai_client()
     personas = {p["id"]: p for p in load_personas(args.personas_path)}
     seed_rows = load_seed_rows(Path(args.seed_problems))
     print(f"[load] {len(seed_rows)} seed rows, {len(personas)} personas")

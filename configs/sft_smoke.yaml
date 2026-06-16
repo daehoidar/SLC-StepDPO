@@ -1,0 +1,13 @@
+# RunPod 빠른 SFT 테스트용 (Qwen3-1.7B, 1 epoch). 파이프라인 검증 목적.
+sft:
+  use_lora: true
+  lora_r: 32
+  lora_alpha: 64
+  lora_targets: ["q_proj", "v_proj", "o_proj", "k_proj", "gate_proj", "up_proj", "down_proj"]
+  epochs: 1
+  batch_size: 2
+  grad_accum: 8
+  gradient_checkpointing: true
+  max_len: 1024
+  lr: 5.0e-5
+  warmup_steps: 10

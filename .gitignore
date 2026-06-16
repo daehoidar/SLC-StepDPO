@@ -16,3 +16,5 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 .DS_Store
+_runpod_results/
+data_pipeline/output.zip

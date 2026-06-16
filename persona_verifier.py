@@ -109,6 +109,26 @@ Decide whether the step is "persona_ok" or "reject_persona". A step is
 "reject_persona" iff it uses vocabulary/concepts forbidden by the persona's
 grade per the curriculum evidence above.
 
+Judging guidelines (apply using THIS persona's forbidden list above):
+- A forbidden concept counts EVEN IF the exact word is absent. e.g. writing
+  "let x be the number ... so 3x = 24" introduces a variable/equation, so it is a
+  VIOLATION for a persona that forbids variable/equation — even though only the
+  symbol "x" appears, not the word "variable".
+- A MATH ERROR is NOT a persona violation. Judge persona only; ignore arithmetic
+  mistakes and garbled wording (handled by a separate math judge).
+- Everyday comparative/arithmetic language is grade-appropriate, NOT a violation:
+  "twice as many", "half of", "add", "subtract", "divide 24 by 6", "multiply by 7".
+
+Examples (verdict depends on whether the concept is in THIS persona's forbidden list):
+  Step: "Let x be the number of apples. Then 3x = 24, so x = 8."
+   -> {{"verdict":"reject_persona","trigger_term":"x","reasoning":"introduces an algebraic variable and equation"}}
+  Step: "Find the least common multiple of 4 and 6 before adding the fractions."
+   -> {{"verdict":"reject_persona","trigger_term":"least common multiple","reasoning":"uses a forbidden fraction concept"}}
+  Step: "Theresa has twice as many, so 12 / 2 = 6 chocolate bars."
+   -> {{"verdict":"persona_ok","trigger_term":null,"reasoning":"plain division and 'twice as many' are grade-appropriate"}}
+  Step: "Add the daily earnings: 25 + 18 + 16 = 40."
+   -> {{"verdict":"persona_ok","trigger_term":null,"reasoning":"an arithmetic error is not a persona violation"}}
+
 OUTPUT FORMAT (JSON only):
 {{
   "verdict": "persona_ok" | "reject_persona",
@@ -126,6 +146,20 @@ Step to evaluate:
 "{step}"
 
 Output JSON only."""
+
+
+# 변수/방정식을 금지하는 페르소나(주로 초등)에서만 기호 패턴 검사
+_ALGEBRA_FORBIDDEN = {"variable", "equation", "algebra", "unknown", "function"}
+
+# 기호 변수/방정식 패턴 (곱셈 "5 x 5", 단순 등식 "59 = ..."는 안 걸리도록 고정밀)
+_SYMBOLIC_VAR_PATTERNS = [
+    (r"\\\(\s*\d{0,2}[a-zA-Z]\s*\\\)", r"LaTeX 변수 \(x\)"),   # \( x \), \( 2x \)
+    (r"\bdenote\b", "denote (변수 도입)"),
+    (r"\brepresented\s+by\b", "represented by (변수)"),
+    (r"\bsolve\s+for\s+[a-zA-Z]\b", "solve for <변수>"),
+    (r"\blet\s+[a-zA-Z]\s+be\b", "let <변수> be"),
+    (r"\b\d[a-zA-Z]\s*=", "계수-변수 (예: 2x=)"),           # 2x = 12
+]
 
 
 # ──────────────────────────── 포매팅 헬퍼 ─────────────────────────────────
@@ -288,6 +322,24 @@ class PersonaVerifier:
                         f"{ev.get('source_code','?')}) appeared in step"
                     ),
                 )
+
+        # 기호 변수/방정식 패턴: literal 금지어로는 안 잡히는 "Let x be …",
+        # "\( x \)", "2x = 12", "solve for K" 등을 잡는다.
+        # algebra/variable/equation을 금지하는 페르소나에만 적용 (곱셈 "5 x 5"는 회피).
+        forb = {t.lower() for t in persona.get("forbidden_terms", []) if t}
+        if forb & _ALGEBRA_FORBIDDEN:
+            for pat, label in _SYMBOLIC_VAR_PATTERNS:
+                if re.search(pat, step, re.IGNORECASE):
+                    return VerifyResult(
+                        verdict="reject_persona",
+                        confidence=1.0,
+                        stage="A",
+                        trigger_term=label,
+                        reasoning=(
+                            f"algebraic variable/equation pattern ('{label}') "
+                            f"used for a persona that forbids algebra"
+                        ),
+                    )
         return None
 
     # ── Stage B: local LLM (e.g., Llama-3.1-8B-Instruct via vLLM) ────

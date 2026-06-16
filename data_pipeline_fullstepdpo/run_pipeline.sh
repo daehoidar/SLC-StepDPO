@@ -71,7 +71,7 @@ accelerate launch data_pipeline_fullstepdpo/4_train_fullstepdpo.py \
     --output "$CKPT_DIR/fullstepdpo"
 
 echo "=== Stage 5: 평가 ==="
-python data_pipeline/5_evaluate.py \
+python evaluation/5_evaluate.py \
     --model "$CKPT_DIR/fullstepdpo" \
     --test-set "$OUT_DIR/test.jsonl" \
     --personas-path personas.json \

@@ -57,12 +57,21 @@ def format_sft_text(row: dict) -> str:
 
 def tokenize_for_sft(tokenizer, row: dict, max_len: int) -> dict:
     text = format_sft_text(row)
-    enc = tokenizer(text, truncation=True, max_length=max_len, add_special_tokens=False)
-    
+    # EOS 자리 1칸을 남겨 토크나이즈한 뒤 EOS를 붙인다. 이렇게 해야 모델이
+    # 풀이를 마치고 *멈추는 법*(종료)을 학습한다. (EOS 미부착 시 추론에서
+    # 같은 풀이를 반복 생성하는 문제가 발생.)
+    eos_id = tokenizer.eos_token_id
+    add_eos = eos_id is not None
+    tok_max = max_len - 1 if add_eos else max_len
+    enc = tokenizer(text, truncation=True, max_length=tok_max, add_special_tokens=False)
+    if add_eos:
+        enc["input_ids"].append(eos_id)
+        enc["attention_mask"].append(1)
+
     prompt_text = format_sft_prompt(row)
     prompt_enc = tokenizer(prompt_text, add_special_tokens=False)
     prompt_len = len(prompt_enc["input_ids"])
-    
+
     labels = enc["input_ids"].copy()
     # 프롬프트 부분은 Loss 계산에서 제외되도록 -100으로 마스킹
     mask_len = min(prompt_len, len(labels))
@@ -128,6 +137,16 @@ def main():
             task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_cfg)
+
+    # Gradient checkpointing: 활성값(activation) 메모리 대폭 절감 (OOM 방지).
+    # LoRA+checkpointing 조합은 enable_input_require_grads()가 필요하고,
+    # checkpointing과 use_cache는 양립 불가라 use_cache=False로 둔다.
+    if sft_cfg.get("gradient_checkpointing", True):
+        model.gradient_checkpointing_enable()
+        if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+        if hasattr(model, "config"):
+            model.config.use_cache = False
 
     rows = load_jsonl(args.data)
     ds = Dataset.from_list(rows)

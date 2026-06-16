@@ -10,3 +10,6 @@ bitsandbytes
 jsonlines
 tqdm
 pyyaml
+numpy
+scipy            # 태스크 2-B: paired t-test / Wilcoxon
+matplotlib       # 태스크 2-B: Δ 분포 히스토그램 (없으면 플롯만 skip)

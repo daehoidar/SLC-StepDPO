@@ -49,6 +49,7 @@ from judge_prompts import (  # noqa: E402
     STEP_JUDGE_SYSTEM, STEP_JUDGE_USER_TEMPLATE, build_step_judge_kwargs,
 )
 from utils import load_personas, parse_steps  # noqa: E402
+from openai_client import make_openai_client  # noqa: E402
 
 
 def normalize_answer(s: str) -> str:
@@ -148,7 +149,7 @@ def main():
     parser.add_argument("--output", default="eval_results.json")
     args = parser.parse_args()
 
-    client = OpenAI()
+    client = make_openai_client()
     llm = LLM(model=args.model, dtype="bfloat16")
     personas = load_personas(args.personas_path)
     problems = [json.loads(l) for l in open(args.test_set, encoding="utf-8")]

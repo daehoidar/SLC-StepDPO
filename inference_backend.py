@@ -14,6 +14,7 @@
 생성 비용은 모델 로드 1회. 이후 .generate(prompts, sp) 호출은 in-place 추론.
 """
 from __future__ import annotations
+import os
 import warnings
 from types import SimpleNamespace
 
@@ -37,9 +38,14 @@ class TransformersLLM:
     .outputs (list[CompletionOutput])를 가지며 CompletionOutput은 .text를 가짐.
     """
 
-    def __init__(self, model_path: str, **kwargs):
+    def __init__(self, model_path: str = None, model: str = None, **kwargs):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        # vLLM은 LLM(model=...)로 부른다. fallback도 model= 키워드를 허용.
+        model_path = model_path or model
+        if model_path is None:
+            raise ValueError("model_path (또는 model=) 인자가 필요합니다.")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         if self.tokenizer.pad_token is None:
@@ -69,12 +75,17 @@ class TransformersLLM:
         - stop sequences는 생성 후 후처리로 자름 (vLLM의 native stop 토큰과 약간 다름)
         """
         torch = self.torch
+        # OOM 방지를 위해 한 번에 최대 CHUNK개씩 배치 생성 (num_return_sequences).
+        # 직렬(n회 generate) 대비 수 배 빠름.
+        chunk = int(os.environ.get("TF_GEN_CHUNK", "8"))
         results = []
         for prompt in prompts:
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
             input_len = inputs.input_ids.shape[1]
             sample_outs = []
-            for _ in range(sampling_params.n):
+            remaining = sampling_params.n
+            while remaining > 0:
+                b = min(chunk, remaining)
                 with torch.no_grad():
                     out = self.model.generate(
                         **inputs,
@@ -82,16 +93,18 @@ class TransformersLLM:
                         do_sample=sampling_params.temperature > 0,
                         temperature=max(sampling_params.temperature, 1e-3),
                         top_p=sampling_params.top_p,
+                        num_return_sequences=b,
                         pad_token_id=self.tokenizer.eos_token_id,
                     )
-                text = self.tokenizer.decode(
-                    out[0][input_len:], skip_special_tokens=True
-                )
-                # stop sequence 후처리
-                for s in sampling_params.stop:
-                    if s in text:
-                        text = text[: text.index(s)]
-                sample_outs.append(SimpleNamespace(text=text))
+                for i in range(out.shape[0]):
+                    text = self.tokenizer.decode(
+                        out[i][input_len:], skip_special_tokens=True
+                    )
+                    for s in sampling_params.stop:  # stop sequence 후처리
+                        if s in text:
+                            text = text[: text.index(s)]
+                    sample_outs.append(SimpleNamespace(text=text))
+                remaining -= b
             results.append(SimpleNamespace(outputs=sample_outs))
         return results
 

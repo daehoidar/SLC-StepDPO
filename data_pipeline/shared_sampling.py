@@ -47,6 +47,7 @@ except ImportError:
     )
 
 from utils import parse_steps, load_personas  # noqa: E402
+from openai_client import make_openai_client  # noqa: E402
 from persona_verifier import PersonaVerifier  # noqa: E402
 
 
@@ -109,7 +110,7 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # cascade verifier
-    gpt_client = OpenAI()
+    gpt_client = make_openai_client()
     stage_b_client = None
     if not args.disable_stage_b:
         stage_b_client = OpenAI(base_url=args.verifier_base_url,

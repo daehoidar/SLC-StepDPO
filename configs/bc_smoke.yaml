@@ -1,0 +1,22 @@
+# BC-StepDPO 스모크 테스트용 (문제 1~2개, 빠르고 메모리 작게)
+# 4_train_bc_stepdpo.py가 루트 레벨 키를 읽음 (sft: 섹션 아님).
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_targets: ["q_proj", "v_proj", "o_proj", "k_proj"]
+
+epochs: 1
+batch_size: 1            # policy+ref 2개 모델 → 메모리 작게
+grad_accum: 2
+max_len: 1024
+lr: 5.0e-6
+weight_decay: 0.01
+warmup_steps: 0
+max_grad_norm: 1.0
+
+beta: 0.1
+
+# ablation toggle (full = 전부 false)
+disable_step_mask: false
+disable_belief_token: false
+disable_type2: false

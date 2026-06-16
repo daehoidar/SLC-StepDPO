@@ -62,6 +62,23 @@ class BCStepDPOBatch:
     persona_idx: torch.Tensor
     is_type2: torch.Tensor
 
+    def to(self, device):
+        """모든 텐서 필드를 device로 이동한 새 배치 반환.
+
+        accelerate의 prepare()/send_to_device()는 커스텀 dataclass 내부 텐서를
+        자동 이동하지 못하므로, 학습 루프에서 batch.to(device)로 명시 이동한다.
+        """
+        return BCStepDPOBatch(
+            win_input_ids=self.win_input_ids.to(device),
+            win_attention_mask=self.win_attention_mask.to(device),
+            win_step_mask=self.win_step_mask.to(device),
+            lose_input_ids=self.lose_input_ids.to(device),
+            lose_attention_mask=self.lose_attention_mask.to(device),
+            lose_step_mask=self.lose_step_mask.to(device),
+            persona_idx=self.persona_idx.to(device),
+            is_type2=self.is_type2.to(device),
+        )
+
 
 def step_logprob(
     model: nn.Module,
