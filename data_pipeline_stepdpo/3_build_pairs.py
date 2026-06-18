@@ -178,6 +178,7 @@ def build_type2_pairs(
     type1_pairs: list[dict], personas: list[dict],
     cross_belief_model: str = "gpt-4o",
     max_per_problem: int = 3,
+    min_confidence: float = 0.85,
 ) -> list[dict]:
     persona_by_id = {p["id"]: p for p in personas}
     type2_pairs = []
@@ -215,7 +216,8 @@ def build_type2_pairs(
             )
             if (check.get("flip")
                     and not check.get("persona_a_acceptable")
-                    and check.get("persona_b_acceptable")):
+                    and check.get("persona_b_acceptable")
+                    and check.get("confidence", 0.0) >= min_confidence):
                 ec = p.get("evidence_code") or check.get("curriculum_basis")
                 tt = p.get("trigger_term") or check.get("trigger_term")
                 vs = p.get("verifier_stage")

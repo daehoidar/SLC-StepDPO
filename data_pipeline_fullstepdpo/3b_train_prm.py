@@ -121,7 +121,10 @@ def main():
     ap.add_argument("--train-data", required=True,
                     help="3a 산출 step_values.jsonl (persona_validity 포함)")
     ap.add_argument("--epochs", type=int, default=2)
-    ap.add_argument("--batch-size", type=int, default=8)
+    ap.add_argument("--batch-size", type=int, default=2,
+                    help="A10 22GB 기준 2 권장. grad-accum으로 effective batch 보정")
+    ap.add_argument("--grad-accum", type=int, default=4,
+                    help="effective batch = batch-size × grad-accum (기본 2×4=8)")
     ap.add_argument("--lr", type=float, default=1e-5)
     ap.add_argument("--max-len", type=int, default=1024)
     ap.add_argument("--alpha", type=float, default=1.0,
@@ -145,34 +148,37 @@ def main():
     model = PRM(args.base_model).to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=args.lr,
                               weight_decay=0.01)
-    total_steps = len(dl) * args.epochs
+    grad_accum = args.grad_accum
+    total_steps = len(dl) * args.epochs // grad_accum
     sched = get_cosine_schedule_with_warmup(
-        optim, num_warmup_steps=100, num_training_steps=total_steps,
+        optim, num_warmup_steps=50, num_training_steps=total_steps,
     )
 
     model.train()
+    optim.zero_grad()
     step = 0
     for ep in range(args.epochs):
-        for batch in dl:
+        for micro_step, batch in enumerate(dl):
             batch = {k: v.to(device) for k, v in batch.items()}
             out = model(batch["input_ids"], batch["attention_mask"])
             loss_math = F.mse_loss(out["r_math"], batch["t_math"])
             loss_persona = F.binary_cross_entropy(
                 out["r_persona"].clamp(1e-6, 1 - 1e-6), batch["t_persona"],
             )
-            loss = args.alpha * loss_math + args.beta * loss_persona
-
-            optim.zero_grad()
+            loss = (args.alpha * loss_math + args.beta * loss_persona) / grad_accum
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optim.step()
-            sched.step()
-            step += 1
-            if step % 50 == 0:
-                print(f"epoch {ep} step {step}/{total_steps} "
-                      f"loss {loss.item():.4f} "
-                      f"(math {loss_math.item():.4f}, "
-                      f"persona {loss_persona.item():.4f})")
+
+            if (micro_step + 1) % grad_accum == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optim.step()
+                sched.step()
+                optim.zero_grad()
+                step += 1
+                if step % 50 == 0:
+                    print(f"epoch {ep} step {step}/{total_steps} "
+                          f"loss {loss.item() * grad_accum:.4f} "
+                          f"(math {loss_math.item():.4f}, "
+                          f"persona {loss_persona.item():.4f})")
 
     out_path = Path(args.output)
     out_path.mkdir(parents=True, exist_ok=True)

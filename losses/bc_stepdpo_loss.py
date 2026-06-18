@@ -110,6 +110,7 @@ def bc_stepdpo_loss(
     batch: BCStepDPOBatch,
     beta: float = 0.1,
     lambda_cal: float = 0.1,
+    lambda_sft: float = 0.1,
 ) -> dict[str, torch.Tensor]:
     """BC-StepDPO 손실 계산.
 
@@ -146,13 +147,17 @@ def bc_stepdpo_loss(
     per_sample_loss = -F.logsigmoid(beta * delta)
     loss_dpo = per_sample_loss.mean()
 
+    # L_sft: -log π_θ(s_win|x,b,prefix) — win step NLL anchor
+    # step_mask로 win step 토큰만 대상. Final Acc 하락 방지.
+    loss_sft = -win_lp_policy.mean()
+
     # L_cal: -log π_θ(b|x) — belief calibration
     cal_lp = step_logprob(
         policy_model, batch.cal_input_ids, batch.cal_attention_mask, batch.cal_step_mask,
     )
     loss_cal = -cal_lp.mean()
 
-    loss = loss_dpo + lambda_cal * loss_cal
+    loss = loss_dpo + lambda_sft * loss_sft + lambda_cal * loss_cal
 
     t2_mask = batch.is_type2
     t1_mask = ~t2_mask
@@ -160,6 +165,7 @@ def bc_stepdpo_loss(
     return {
         "loss": loss,
         "loss_dpo": loss_dpo,
+        "loss_sft": loss_sft,
         "loss_cal": loss_cal,
         "accuracy": (delta > 0).float().mean(),
         "type1_loss": per_sample_loss[t1_mask].mean() if t1_mask.any() else torch.tensor(0.0, device=loss.device),

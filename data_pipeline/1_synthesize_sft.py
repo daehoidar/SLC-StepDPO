@@ -41,6 +41,7 @@ from judge_prompts import (  # noqa: E402
 )
 from utils import load_personas, parse_steps  # noqa: E402
 from openai_client import make_openai_client  # noqa: E402
+from persona_verifier import PersonaVerifier  # noqa: E402
 
 
 def load_seed_rows(path: Path) -> list[dict]:
@@ -54,6 +55,7 @@ def load_seed_rows(path: Path) -> list[dict]:
 def generate_one_solution(
     client: OpenAI, seed_row: dict, persona: dict,
     model: str = "gpt-4o", max_retries: int = 3,
+    verifier: PersonaVerifier | None = None,
 ) -> dict | None:
     sys_prompt = GENERATOR_SYSTEM.format(**build_generator_kwargs(persona))
     user_prompt = GENERATOR_USER_TEMPLATE.format(
@@ -77,6 +79,16 @@ def generate_one_solution(
             steps = parse_steps(solution_text)
             if len(steps) < 2:
                 continue
+
+            # PersonaVerifier로 forbidden term 위반 스텝 필터링
+            if verifier is not None:
+                n_violations = sum(
+                    1 for i, s in enumerate(steps)
+                    if verifier.verify_step(s, persona, prefix=steps[:i]).verdict == "reject_persona"
+                )
+                if n_violations > 0:
+                    continue  # 위반 있으면 재생성
+
             return {
                 "problem_id": seed_row["problem_id"],
                 "problem": seed_row["question"],
@@ -120,9 +132,20 @@ def main():
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--limit", type=int, default=0,
                         help="0이면 전체. 디버그/부트스트랩용 호출 수 제한.")
+    parser.add_argument("--verify", action="store_true",
+                        help="PersonaVerifier로 forbidden term 위반 풀이 재생성 (권장)")
     args = parser.parse_args()
 
     client = make_openai_client()
+    verifier = PersonaVerifier(
+        stage_b_client=None,
+        stage_c_client=client,
+        stage_c_model=args.model,
+        enable_stage_b=False,
+        enable_stage_c=True,
+    ) if args.verify else None
+    if verifier:
+        print("[verify] PersonaVerifier 활성 — forbidden term 위반 풀이 재생성")
     personas = {p["id"]: p for p in load_personas(args.personas_path)}
     seed_rows = load_seed_rows(Path(args.seed_problems))
     print(f"[load] {len(seed_rows)} seed rows, {len(personas)} personas")
@@ -173,7 +196,7 @@ def main():
          open(error_path, "a", encoding="utf-8") as ferr, \
          ThreadPoolExecutor(max_workers=args.workers) as ex:
         futures = [
-            ex.submit(generate_one_solution, client, row, pers, args.model)
+            ex.submit(generate_one_solution, client, row, pers, args.model, verifier)
             for row, pers in tasks
         ]
         for i, fut in enumerate(as_completed(futures)):

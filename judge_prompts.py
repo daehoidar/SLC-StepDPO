@@ -287,12 +287,17 @@ OUTPUT FORMAT (JSON only):
   "persona_a_acceptable": true,
   "persona_b_acceptable": false,
   "flip": true,
+  "confidence": 0.95,
   "curriculum_basis": "[6수01-08]",
   "trigger_term": "통분",
   "explanation": "Step uses '통분', introduced at 초등5-6 [6수01-08]. Persona A (초등5-6+) has reached this; Persona B (초등3-4) has not."
 }}
 
 "flip" is true if and only if persona_a_acceptable != persona_b_acceptable.
+"confidence": float 0.0–1.0. How certain you are the flip is grounded in the curriculum evidence.
+  - 1.0: explicit forbidden term with a clear curriculum code.
+  - 0.7–0.9: term is borderline or the curriculum code is inferred.
+  - <0.7: ambiguous; the flip may be stylistic rather than curriculum-grounded.
 "curriculum_basis": the curriculum code that justifies the flip, or null if not applicable.
 "trigger_term": the specific term in the step that caused the flip, or null.
 """

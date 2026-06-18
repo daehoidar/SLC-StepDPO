@@ -221,12 +221,16 @@ def main():
 
     beta       = cfg.get("beta", 0.1)
     lambda_cal = cfg.get("lambda_cal", 0.1)
+    lambda_sft = cfg.get("lambda_sft", 0.1)
     global_step = 0
     for epoch in range(cfg["epochs"]):
         for batch in loader:
             batch = batch.to(accelerator.device)
             with accelerator.accumulate(policy):
-                out = bc_stepdpo_loss(policy, ref, batch, beta=beta, lambda_cal=lambda_cal)
+                out = bc_stepdpo_loss(
+                    policy, ref, batch,
+                    beta=beta, lambda_cal=lambda_cal, lambda_sft=lambda_sft,
+                )
                 accelerator.backward(out["loss"])
                 if accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(
@@ -241,7 +245,9 @@ def main():
                 print(
                     f"[ep{epoch} step{global_step}] "
                     f"loss={out['loss'].item():.4f} "
-                    f"(dpo={out['loss_dpo'].item():.4f} cal={out['loss_cal'].item():.4f}) "
+                    f"(dpo={out['loss_dpo'].item():.4f} "
+                    f"sft={out['loss_sft'].item():.4f} "
+                    f"cal={out['loss_cal'].item():.4f}) "
                     f"acc={out['accuracy'].item():.3f} "
                     f"t1_acc={out['type1_accuracy'].item():.3f} "
                     f"t2_acc={out['type2_accuracy'].item():.3f} "
