@@ -35,7 +35,7 @@ train() {  # $1=config $2=outdir
   [ -f "$2/adapter_model.safetensors" ] && { echo "[skip-train] $2 존재"; return; }
   echo "=== train $2 ($1) ==="
   accelerate launch --num_processes 1 --mixed_precision bf16 \
-    data_pipeline/4_train_bc_stepdpo.py --base-model "$SFT_MERGED" \
+    data_pipeline_stepdpo/4_train_bc_stepdpo.py --base-model "$SFT_MERGED" \
     --pairs "$PAIRS" --config "$1" --output "$2" || echo "[warn] train $2 실패"
 }
 train configs/abl_vanilla_dpo.yaml checkpoints/abl_vanilla_dpo

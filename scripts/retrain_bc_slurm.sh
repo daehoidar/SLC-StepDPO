@@ -22,7 +22,7 @@ CONFIG="${CONFIG:-configs/bc_retrain.yaml}"
 OUT="${OUT:-checkpoints/bc_stepdpo_v2}"
 echo "=== config=$CONFIG  out=$OUT ==="
 accelerate launch --num_processes 1 --mixed_precision bf16 \
-    data_pipeline/4_train_bc_stepdpo.py \
+    data_pipeline_stepdpo/4_train_bc_stepdpo.py \
     --base-model checkpoints/sft_qwen3_1.7b_eos_merged \
     --pairs data_pipeline/output/preference_pairs.jsonl \
     --config "$CONFIG" \

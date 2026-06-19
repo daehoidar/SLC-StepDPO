@@ -60,7 +60,7 @@ AUG=data_pipeline/output/preference_pairs_aug.jsonl
 [ -f "$AUG" ] || python data_pipeline/augment_type2.py --pairs data_pipeline/output/preference_pairs.jsonl \
   --gpt-model "$GENJUDGE" --max-candidates 5 --max-per-problem 20 --output "$AUG" || echo "[warn] augment"
 [ -f checkpoints/full_aug/adapter_model.safetensors ] || accelerate launch --num_processes 1 --mixed_precision bf16 \
-  data_pipeline/4_train_bc_stepdpo.py --base-model "$SFT" --pairs "$AUG" \
+  data_pipeline_stepdpo/4_train_bc_stepdpo.py --base-model "$SFT" --pairs "$AUG" \
   --config configs/bc_retrain_v3.yaml --output checkpoints/full_aug || echo "[warn] train full_aug"
 { [ -f checkpoints/full_aug_merged/config.json ] || python data_pipeline/merge_adapter.py --base-model "$SFT" \
   --adapter checkpoints/full_aug --output checkpoints/full_aug_merged ; } || echo "[warn] merge full_aug"
