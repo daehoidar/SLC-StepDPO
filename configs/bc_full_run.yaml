@@ -1,0 +1,38 @@
+# BC-StepDPO 본 학습(ⓑ) — 3항 손실(DPO+SFT anchor+belief cal) + belief 토큰 + Type-2.
+# lr/warmup은 이전 평탄-loss 함정(lr 5e-6 + warmup 100 > 실제 optimizer step) 회피.
+
+sft:
+  use_lora: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_targets: ["q_proj", "v_proj", "o_proj", "k_proj"]
+  epochs: 2
+  batch_size: 4
+  grad_accum: 4
+  max_len: 1024
+  lr: 2.0e-5
+  warmup_steps: 100
+
+# -------- BC-StepDPO (Stage 4) --------
+use_lora: true
+lora_r: 32
+lora_alpha: 64
+lora_targets: ["q_proj", "v_proj", "o_proj", "k_proj"]
+
+epochs: 3
+batch_size: 4
+grad_accum: 4               # 업데이트 빈도↑ (48GB라 batch 4 여유)
+max_len: 1024
+lr: 5.0e-5                  # 5e-6 → 5e-5 (학습 신호 확보)
+weight_decay: 0.01
+warmup_steps: 20            # 100 → 20 (실제 step 수에 맞춤)
+max_grad_norm: 1.0
+
+beta: 0.1
+lambda_sft: 0.1            # win step NLL anchor (Final Acc 보존)
+lambda_cal: 0.1            # belief calibration
+
+# 제안 방법 = belief 토큰·Type-2 모두 사용
+disable_step_mask: false
+disable_belief_token: false
+disable_type2: false

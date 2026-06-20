@@ -26,9 +26,7 @@ MODELS = [
     ("vanilla_dpo", "Vanilla DPO"),
     ("step_dpo",    "Step-DPO"),
     ("fullstepdpo", "Full-Step-DPO (PRM)"),
-    ("type1_only",  "BC-StepDPO (Type-1 only)"),
-    ("full",        "Full BC-StepDPO (Type-1 + Type-2)"),
-    ("full_aug",    "Full BC-StepDPO (Type-2 aug.)"),
+    ("bc_3term",    "BC-StepDPO (3-term: DPO+SFT+cal)"),
 ]
 COLS = ["Model", "Final Acc.", "Step Acc.", "Persona Cons.", "Format", "Belief-Flip"]
 N_METRIC = 5
