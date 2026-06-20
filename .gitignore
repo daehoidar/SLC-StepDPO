@@ -10,6 +10,15 @@ wandb/
 .env
 *.env
 
+# API 키 (절대 커밋 금지)
+.openai_key
+.openai_key_fallback
+.openai_key*
+
+# 실행 산출물/로그
+logs/
+data_pipeline_fullstepdpo/output/
+
 # 캐시
 __pycache__/
 *.pyc
