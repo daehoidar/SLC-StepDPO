@@ -1,0 +1,10 @@
+{
+  "model": "checkpoints/bc_s0.01_c0.0",
+  "persona_low": "elem_low",
+  "persona_high": "high_high",
+  "n_problems": 60,
+  "belief_flip_accuracy": 10.0,
+  "lo_ok_rate": 38.3,
+  "hi_ok_rate": 66.7,
+  "adapt_rate": 78.3
+}

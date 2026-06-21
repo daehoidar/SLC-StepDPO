@@ -1,0 +1,11 @@
+{
+  "metrics": {
+    "final_answer_accuracy": 0.7333333333333333,
+    "step_accept_rate": 0.7284366576819407,
+    "step_math_err_rate": 0.08018867924528301,
+    "step_persona_err_rate": 0.19137466307277629,
+    "n_steps_judged": 1484,
+    "format_compliant_rate": 0.9777777777777777
+  },
+  "n_results": 360
+}
